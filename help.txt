@@ -1,0 +1,17 @@
+To run the game:-
+- run make
+- execute the ./game
+- Type 'Y' to run
+- Enter the name of the map file to load
+- Default map files provided :- map1.txt, map2.txt
+- To make custom maps, make a text file with 10x10 characters
+	-> 0 = Air
+	-> 1 = Platform
+	-> 2 = Low Platform
+	-> 3 = High Platform
+Key - bindings:-
+Left,Right to turn
+f,s change ball speed
+1,2 to toggle views
+space to jump
+click to unpause

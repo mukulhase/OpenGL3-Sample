@@ -1,0 +1,7 @@
+all: game
+
+game: 201401144_game.cpp glad.c
+	g++ -o game 201401144_game.cpp glad.c -lGL -lglfw
+
+clean:
+	rm sample2D sample3D
