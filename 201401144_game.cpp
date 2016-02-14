@@ -68,8 +68,12 @@ public:
         lookangle = 0;
     }
     void jump(){
-        if(abs(object->vely)<0.001)
-            object->vely+=jumpspeed;
+        if (game.jump)
+        {
+            if(abs(object->vely)<0.001)
+                object->vely+=jumpspeed;
+        }
+        
     }
     void updateSpeed(int s){
         if(s==1){
@@ -223,6 +227,10 @@ public:
             return 1;
         }else if(map[cuberow][cubecol] != '1'){
             
+        }else if(map[cuberow][cubecol] != 'n'){
+            jumpable=false;
+        }else{
+            jumpable=true;
         }
         return 0;
     }
