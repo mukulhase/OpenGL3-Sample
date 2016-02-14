@@ -56,6 +56,7 @@ public:
     float minspeed;
     float jumpspeed;
     float lookangle;
+    bool jumpable;
     GameObject* object;
     int id;
     Player(){
@@ -68,7 +69,7 @@ public:
         lookangle = 0;
     }
     void jump(){
-        if (game.jump)
+        if (jumpable)
         {
             if(abs(object->vely)<0.001)
                 object->vely+=jumpspeed;
@@ -138,6 +139,7 @@ public:
     int height;
     bool ended;
     int lives;
+    bool jumpable;
     float gravity;
     float helicopterx;
     float helicoptery;
@@ -183,7 +185,7 @@ public:
             player.reset();
         }
         /*if(detectfall()){
-            //endgame();
+            endgame();
         };*/
         oscillate();
         updatePositions();
@@ -205,6 +207,7 @@ public:
     }
     void preset(){
         helicopterheight=30;
+        jumpable=true;
         paused=false;
         width=1280;
         height=720;
@@ -222,15 +225,12 @@ public:
         float z = player.object->posz;
         int cuberow = floor((10 + x +1)/2);
         int cubecol = floor((10 + z +1)/2);
+        player.jumpable=true;
         if (map[cuberow][cubecol] == 'w') {
             endgame();
             return 1;
-        }else if(map[cuberow][cubecol] != '1'){
-            
-        }else if(map[cuberow][cubecol] != 'n'){
-            jumpable=false;
-        }else{
-            jumpable=true;
+        }else if(map[cuberow][cubecol] == 'n'){
+            player.jumpable=false;
         }
         return 0;
     }
@@ -388,7 +388,7 @@ public:
                         oscillatables.push_back(spawnCube(-10.0 + 2.0*i, -2.0, -10.0 + 2.0*j, cube, 2,2,2));
                         break;
                     case 'n':
-                        spawnCube(-10.0 + 2.0*i, 6.0 -2.0*k, -10.0 + 2.0*j, , createCube(2,2,2,nojumpcolor), 2,2,2);
+                        spawnCube(-10.0 + 2.0*i, 0, -10.0 + 2.0*j, createCube(2,2,2,nojumpcolor), 2,2,2);
                     default:
                         break;
                 }
