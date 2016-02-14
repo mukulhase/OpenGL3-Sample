@@ -13,7 +13,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 using namespace std;
 GLFWwindow* window;
-
+bool clicked;
 struct VAO {
     GLuint VertexArrayID;
     GLuint VertexBuffer;
@@ -50,11 +50,12 @@ public:
 };
 class Player {
 public:
-    int state[4];
+    int state[6];
     float speed;
     float maxspeed;
     float minspeed;
     float jumpspeed;
+    float lookangle;
     GameObject* object;
     int id;
     Player(){
@@ -64,6 +65,7 @@ public:
         maxspeed = 1;
         minspeed = 0;
         jumpspeed = 0.25;
+        lookangle = 0;
     }
     void jump(){
         if(abs(object->vely)<0.001)
@@ -71,9 +73,9 @@ public:
     }
     void updateSpeed(int s){
         if(s==1){
-            speed+=0.025;
+            speed+=0.005;
         }else if(s==0){
-            speed-=0.025;
+            speed-=0.005;
         }
         if(speed>maxspeed){
             speed=maxspeed;
@@ -99,6 +101,16 @@ public:
         if(state[3]){
             updateSpeed(0);
         }
+        if (state[4]) {
+            if (lookangle<90) {
+                lookangle++;
+            }
+        }
+        if (state[5]) {
+            if (lookangle>-90) {
+                lookangle--;
+            }
+        }
         temp->velz=speed*cos(angle*M_PI/180.0f);
         temp->velx=speed*sin(angle*M_PI/180.0f);
     }
@@ -112,7 +124,6 @@ public:
         object->posz=-10;
     }
 };
-
 class GameState
 {
 public:
@@ -124,8 +135,13 @@ public:
     bool ended;
     int lives;
     float gravity;
+    float helicopterx;
+    float helicoptery;
+    float helicopterheight;
+    VAO* skybox;
     int map[10][10];
     GameObject objects[100000];
+    vector <int> oscillatables;
     Player player;
     int objectindex;
     int spawnObject(float posx,float posy, float posz, float velx, float vely, float velz, float accy, VAO* vao){
@@ -151,17 +167,25 @@ public:
         objects[index].h=h;
         return index;
     }
+    void oscillate(){
+        for ( auto i = oscillatables.begin(); i != oscillatables.end(); i++ ) {
+            objects[*i].accy = -0.05*objects[*i].posy;
+        }
+    }
     void update(){
+        
         player.update();
-        if(player.object->posy < 0){
+        if(player.object->posy < -10){
             player.reset();
         }
         /*if(detectfall()){
             //endgame();
         };*/
+        oscillate();
         updatePositions();
         checkCollision();
         detectWin();
+        
     }
     void updatePositions(){
         int i;
@@ -176,6 +200,7 @@ public:
         }
     }
     void preset(){
+        helicopterheight=30;
         paused=false;
         width=1280;
         height=720;
@@ -193,10 +218,10 @@ public:
         float z = player.object->posz;
         int cuberow = floor((10 + x +1)/2);
         int cubecol = floor((10 + z +1)/2);
-        if (map[cuberow][cubecol] == 4) {
+        if (map[cuberow][cubecol] == 'w') {
             endgame();
             return 1;
-        }else if(map[cuberow][cubecol] != 1){
+        }else if(map[cuberow][cubecol] != '1'){
             
         }
         return 0;
@@ -204,8 +229,27 @@ public:
     void checkCollision(){
         int i;
         GameObject *temp = player.object;
-
         GameObject temp2;
+        //oscillator collisions
+        
+        for ( auto i = oscillatables.begin(); i != oscillatables.end(); i++ ) {
+            temp2 = objects[*i];
+            float xdiff = temp->posx-temp2.posx;
+            float ydiff = temp->posy-temp2.posy;
+            float zdiff = temp->posz-temp2.posz;
+            bool hint = abs(ydiff) < abs(temp2.h + temp->h)/2;
+            bool lint = abs(xdiff) < abs(temp2.l + temp->l)/2;
+            bool bint = abs(zdiff) < abs(temp2.b + temp->b)/2;
+            if (hint && lint && bint) {
+                bool hintp = abs(ydiff-temp->vely) < abs(temp2.h + temp->h)/2;
+                bool lintp = abs(xdiff-temp->velx) < abs(temp2.l + temp->l)/2;
+                bool bintp = abs(zdiff-temp->velz) < abs(temp2.b + temp->b)/2;
+                if (hint && lintp && bintp) {
+                    player.object->posy += temp2.vely;
+                }
+            }
+        }
+        //player collisions
         for(i=0; i<objectindex; i++){
             if (i==player.id) {
                 continue;
@@ -217,10 +261,7 @@ public:
             bool hint = abs(ydiff) < abs(temp2.h + temp->h)/2;
             bool lint = abs(xdiff) < abs(temp2.l + temp->l)/2;
             bool bint = abs(zdiff) < abs(temp2.b + temp->b)/2;
-            //float distance = pow(xdiff,2.0)+pow(ydiff,2.0)+pow(zdiff,2.0);
-            //float radsum = pow(temp->radius+temp->radius,2);
             if (hint && lint && bint) {
-                //cout << "distance " << distance << " radsum " << radsum << endl;
                 bool hintp = abs(ydiff-temp->vely) < abs(temp2.h + temp->h)/2;
                 bool lintp = abs(xdiff-temp->velx) < abs(temp2.l + temp->l)/2;
                 bool bintp = abs(zdiff-temp->velz) < abs(temp2.b + temp->b)/2;
@@ -236,10 +277,23 @@ public:
                     temp->posz -= temp->velz;
                     temp->velz = 0;
                 }
+                if (lintp && hintp && bintp) {
+                    player.reset();
+                }
             }
         }
+        
     }
     void init(){
+        float skycolor[2][3]= {
+            {
+                0,255,255
+            },
+            {
+                0,255,255
+            }
+        };
+        skybox = createCube(100,100,100,skycolor);
         float color[2][3]= {
             {
                 255,255,125
@@ -248,7 +302,7 @@ public:
                 255,0,0
             }
         };
-        player.object = &objects[player.id=spawnCube(-10.0, 2.0, -10.0, createCube(1,2,1,color), 1, 2,1)];
+        player.object = &objects[player.id=spawnCube(-10.0, 2.0, -10.0, createCube(0.01,0.01,0.01,color), 1, 2,1)];
         player.object->accy = gravity;
 
         int i,j;
@@ -257,25 +311,54 @@ public:
             for (j=0; j<10; j++) {
                 int k;
                 switch (map[i][j]) {
-                    case 0:
+                        /*
+                         0 -nothing
+                         1 normal
+                         2 win
+                         3 -1height
+                         4 -2height
+                         */
+                    case '0':
                         break;
-                    case 3:
-                        for (k=0; k<10; k++) {
+                    case '2':
+                        for (k=0; k<5; k++) {
                             spawnCube(-10.0 + 2.0*i, -2.0 -2.0*k, -10.0 + 2.0*j, cube, 2,2,2);
                         }
                         break;
-                    case 1:
-                    case 4:
-                        for (k=0; k<10; k++) {
+                    case '3':
+                        for (k=0; k<5; k++) {
+                            spawnCube(-10.0 + 2.0*i, -4.0 -2.0*k, -10.0 + 2.0*j, cube, 2,2,2);
+                        }
+                        break;
+                    case '1':
+                    case 'w':
+                        for (k=0; k<5; k++) {
                             spawnCube(-10.0 + 2.0*i, -2.0*k, -10.0 + 2.0*j, cube,2,2,2);
                         }
                         break;
-                    case 2:
-                        for (k=0; k<10; k++) {
+                    case '4':
+                        for (k=0; k<5; k++) {
                             spawnCube(-10.0 + 2.0*i, 2.0 -2.0*k, -10.0 + 2.0*j, cube, 2,2,2);
                         }
                         break;
-                        
+                    case '5':
+                        for (k=0; k<5; k++) {
+                            spawnCube(-10.0 + 2.0*i, 4.0 -2.0*k, -10.0 + 2.0*j, cube, 2,2,2);
+                        }
+                        break;
+                    case '6':
+                        for (k=0; k<5; k++) {
+                            spawnCube(-10.0 + 2.0*i, 6.0 -2.0*k, -10.0 + 2.0*j, cube, 2,2,2);
+                        }
+                        break;
+                    case '7':
+                        for (k=0; k<5; k++) {
+                            spawnCube(-10.0 + 2.0*i, 8.0 -2.0*k, -10.0 + 2.0*j, cube, 2,2,2);
+                        }
+                        break;
+                    case 'o':
+                        oscillatables.push_back(spawnCube(-10.0 + 2.0*i, -2.0, -10.0 + 2.0*j, cube, 2,2,2));
+                        break;
                     default:
                         break;
                 }
@@ -474,15 +557,22 @@ void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods)
     // Function is called first on GLFW_PRESS.
     
     if (action == GLFW_RELEASE) {
-        if (game.paused) {
-            game.paused=false;
-        }
+        
         switch (key) {
             case GLFW_KEY_1:
                 game.cameramode=0;
                 break;
             case GLFW_KEY_2:
                 game.cameramode=1;
+                break;
+            case GLFW_KEY_3:
+                game.cameramode=2;
+                break;
+            case GLFW_KEY_4:
+                game.cameramode=3;
+                break;
+            case GLFW_KEY_5:
+                game.cameramode=4;
                 break;
             case GLFW_KEY_SPACE:
                 game.player.jump();
@@ -498,13 +588,18 @@ void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods)
             case GLFW_KEY_RIGHT:
                 game.player.state[1] = 0;
                 break;
+            case GLFW_KEY_UP:
+                game.player.state[4] = 0;
+                break;
+            case GLFW_KEY_DOWN:
+                game.player.state[5] = 0;
+                break;
             case GLFW_KEY_F:
                 game.player.state[2] = 0;
                 break;
             case GLFW_KEY_S:
                 game.player.state[3] = 0;
                 break;
-            
             case GLFW_KEY_K:
                 break;
             default:
@@ -512,6 +607,9 @@ void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods)
         }
     }
     else if (action == GLFW_PRESS) {
+        if (game.paused) {
+            game.paused=false;
+        }
         switch (key) {
             case GLFW_KEY_ESCAPE:
                 quit(window);
@@ -521,6 +619,12 @@ void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods)
                 break;
             case GLFW_KEY_RIGHT:
                 game.player.state[1] = 1;
+                break;
+            case GLFW_KEY_UP:
+                game.player.state[4] = 1;
+                break;
+            case GLFW_KEY_DOWN:
+                game.player.state[5] = 1;
                 break;
             case GLFW_KEY_F:
                 game.player.state[2] = 1;
@@ -550,7 +654,8 @@ void keyboardChar (GLFWwindow* window, unsigned int key)
             break;
     }
 }
-
+float startx;
+float starty;
 /* Executed when a mouse button is pressed/released */
 void mouseButton (GLFWwindow* window, int button, int action, int mods)
 {
@@ -561,8 +666,14 @@ void mouseButton (GLFWwindow* window, int button, int action, int mods)
                     game.paused=false;
                 }else{
                 }
+                clicked=false;
             }
             if (action == GLFW_PRESS){
+                double mos_x,mos_y;
+                glfwGetCursorPos(window, &mos_x, &mos_y);
+                startx = mos_x;
+                starty = mos_y;
+                clicked=true;
             }
             break;
         case GLFW_MOUSE_BUTTON_RIGHT:
@@ -596,7 +707,7 @@ void reshapeWindow (GLFWwindow* window, int width, int height)
      gluPerspective (fov, (GLfloat) fbwidth / (GLfloat) fbheight, 0.1, 500.0); */
     // Store the projection matrix in a variable for future use
     // Perspective projection for 3D views
-    Matrices.projection = glm::perspective (fov, (GLfloat) fbwidth / (GLfloat) fbheight, 0.1f, 500.0f);
+    Matrices.projection = glm::perspective (fov, (GLfloat) fbwidth / (GLfloat) fbheight, 1.0f, 500.0f);
     
     // Ortho projection for 2D views
     // Matrices.projection = glm::ortho(-game.leftmax, game.rightmax, -game.downmax, game.upmax, 0.1f, 500.0f);
@@ -609,6 +720,7 @@ float rectangle_rotation = 0;
 float triangle_rotation = 0;
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
+    game.helicopterheight+=yoffset;
 }
 
 /* Render the scene with openGL */
@@ -616,14 +728,33 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 void processobjects(){}
 glm::mat4 VP;
 glm::mat4 MVP;
+VAO* createBall (float scale)
+{
+    int i;
+    GLfloat vertex_buffer_data[540], color_buffer_data[540];
+    for (i=0; i+2<540; i+=3) {
+        vertex_buffer_data[i] = scale*cos(i*M_PI/60);
+        vertex_buffer_data[i+1] = scale*sin(i*M_PI/60);
+        vertex_buffer_data[i+2] = 1;
+        color_buffer_data[i] = 1;
+        color_buffer_data[i+1] = 1;
+        color_buffer_data[i+2] = 0;
+    }
+    color_buffer_data[0]=0;
+    return create3DObject(GL_TRIANGLE_FAN, 180, vertex_buffer_data, color_buffer_data, GL_FILL);
+}
 void draw ()
 {
+    
     float eyex;
     float eyey;
     float eyez;
     float tarx;
     float tary;
     float tarz;
+    float firstpersonheight = tan(game.player.lookangle*M_PI/180);
+    static float xdiff = 0;
+    static float ydiff = M_PI/4;
     // clear the color and depth in the frame buffer
     glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
@@ -634,6 +765,7 @@ void draw ()
     // Send our transformation to the currently bound shader, in the "MVP" uniform
     // For each model you render, since the MVP will be different (at least the M part)
     //  Don't change unless you are sure!!
+    
     if(game.paused){
         eyex=0;
         eyey=0;
@@ -691,7 +823,37 @@ void draw ()
                 tarz=0;
                 // Up - Up vector defines tilt of camera.  Don't change unless you are sure!!
                 break;
-                
+            case 2:
+                eyex=game.player.object->posx;
+                eyey=game.player.object->posy;
+                eyez=game.player.object->posz;
+                tarx=eyex + 1*sin(game.player.object->angley*M_PI/180.0f);
+                tarz=eyez + 1*cos(game.player.object->angley*M_PI/180.0f);
+                tary=eyey + firstpersonheight;
+                break;
+            case 3:
+                tarx=game.player.object->posx;
+                tary=game.player.object->posy;
+                tarz=game.player.object->posz;
+                eyex=tarx - 3*sin(game.player.object->angley*M_PI/180.0f);
+                eyez=tarz - 3*cos(game.player.object->angley*M_PI/180.0f);
+                eyey=tary + firstpersonheight;
+                break;
+            case 4:
+                double mos_x,mos_y;
+                glfwGetCursorPos(window, &mos_x, &mos_y);
+                if (clicked) {
+                    xdiff += mos_x -  startx;
+                    ydiff += mos_y - starty;
+                }
+                tarx=0;
+                tary=0;
+                tarz=0;
+                eyex=game.helicopterheight*sin(ydiff/game.height)*sin(xdiff/game.width);
+                eyez=game.helicopterheight*sin(ydiff/game.height)*cos(xdiff/game.width);
+                eyey=game.helicopterheight*cos(ydiff/game.height);
+                break;
+
         }
         
         // Eye - Location of camera. Don't change unless you are sure!!
@@ -704,7 +866,18 @@ void draw ()
         Matrices.view = glm::lookAt( eye, target, up ); // Rotating Camera for 3D
         
         VP = Matrices.projection * Matrices.view;
+        Matrices.model = glm::mat4(1.0f);
         
+        glm::mat4 translateTriangle = glm::translate (glm::vec3(0, 0, 0.0f)); // glTranslatef
+        // rotate about vector (1,0,0)
+        Matrices.model *= translateTriangle;
+        MVP = VP * Matrices.model; // MVP = p * V * M
+        
+        //  Don't change unless you are sure!!
+        glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+        
+        // draw3DObject draws the VAO given to it using current MVP matrix
+        draw3DObject(game.skybox);
         int i;
         for (i=0; i<game.objectindex; i++) {
             Matrices.model = glm::mat4(1.0f);
@@ -724,6 +897,57 @@ void draw ()
             // draw3DObject draws the VAO given to it using current MVP matrix
             draw3DObject(game.objects[i].vao);
             
+        }
+        Matrices.model = glm::mat4(1.0f);
+        float color[2][3]= {
+            {
+                255,255,125
+            },
+            {
+                255,0,0
+            }
+        };
+        /* Render your scene */
+        float body[8][7] =
+        {
+            {
+                0,0.75,0,0.5,0.5,0.2,0
+            },
+            {
+                0,0,0,0.5,1,0.5,0
+            },
+            {
+                0.25,0.5,0,0.5,0.2,0.2,0
+            },
+            {
+                -0.25,0.5,0,0.5,0.2,0.2,0
+            },
+            {
+                0.5,0.25,0,0.2,0.5,0.2,0
+            },
+            {
+                -0.5,0.25,0,0.2,0.5,0.2,0
+            },
+            {
+                0.25,-0.75,0,0.2,0.5,0.2,0
+            },
+            {
+                -0.25,-0.75,0,0.2,0.5,0.2,0
+            }
+        };
+        for(i=0;i<8;i++){
+            Matrices.model = glm::mat4(1.0f);
+            glm::mat4 translateTriangle = glm::translate (glm::vec3( game.player.object -> posx, game.player.object -> posy, game.player.object -> posz)); // glTranslatef
+            glm::mat4 rotateTriangle = glm::rotate((float)(game.player.object -> anglez*M_PI/180.0f), glm::vec3(0,0,1));
+            rotateTriangle *= glm::rotate((float)(game.player.object -> anglex*M_PI/180.0f), glm::vec3(1,0,0));
+            rotateTriangle *= glm::rotate((float)(game.player.object -> angley*M_PI/180.0f), glm::vec3(0,1,0));// rotate about vector (1,0,0)
+            glm::mat4 translateAfterTriangle= glm::translate (glm::vec3(body[i][0], body[i][1], body[i][2]));
+
+            glm::mat4 triangleTransform = translateTriangle * rotateTriangle *translateAfterTriangle;
+            Matrices.model *= triangleTransform;
+            MVP = VP * Matrices.model;
+            glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+            draw3DObject(createCube(body[i][3], body[i][4], body[i][5], color));
         }
     }
 }
@@ -1014,6 +1238,7 @@ int main (int argc, char** argv)
     game.preset();
     window = initGLFW(game.width, game.height);
     initGL (window, game.width, game.height);
+    
     while (1) {
         while (game.paused) {
             draw();
@@ -1034,13 +1259,13 @@ int main (int argc, char** argv)
         cout << "Enter Name of map:-" <<endl;
         cin >> name;
         std::ifstream file(name.c_str());
-        for(int i = 0; i < 5; i++)
+        for(int i = 0; i < 10; i++)
         {
             std::string row;
             if (file >> row) {
-                for (int j = 0; j != std::min<int>(5, row.length()) ; ++j)
+                for (int j = 0; j != std::min<int>(10, row.length()) ; ++j)
                 {
-                    game.map[j][i] = row[j]-0x30;
+                    game.map[j][i] = row[j];
                 }
             } else break;
         }
@@ -1059,15 +1284,25 @@ int main (int argc, char** argv)
             if ((current_time - last_update_time) >= 0.01) { // atleast 0.5s elapsed since last frame
                 // do something every 0.5 seconds ..
                 game.update();
+                string mode="";
                 switch (game.cameramode) {
                     case 0:
-                        glfwSetWindowTitle(window,("Tower Mode " + to_string(current_time)).c_str());
+                        mode="Tower View ";
                         break;
                     case 1:
-                        glfwSetWindowTitle(window,("Top Mode " + to_string(current_time)).c_str());
+                        mode="Top View ";
                         break;
-                        
+                    case 2:
+                        mode="First Person View ";
+                        break;
+                    case 3:
+                        mode="Third Person View ";
+                        break;
+                    case 4:
+                        mode="Helicopter View ";
+                        break;
                 }
+                glfwSetWindowTitle(window,(mode + "- " + to_string(current_time)).c_str());
                 if (game.ended==true) {
                     glfwSetWindowTitle(window, ("Game Over, You Won! - Go to terminal"));
                     game.paused = true;
