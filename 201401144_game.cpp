@@ -231,6 +231,8 @@ public:
             return 1;
         }else if(map[cuberow][cubecol] == 'n'){
             player.jumpable=false;
+        }else if(map[cuberow][cubecol] == 's'){
+            player.speed=0.5;
         }
         return 0;
     }
@@ -326,6 +328,14 @@ public:
                 125,255,125
             }
         };
+        float speedcolor[2][3]= {
+            {
+                255,125,125
+            },
+            {
+                125,0,0
+            }
+        };
         player.object = &objects[player.id=spawnCube(-10.0, 2.0, -10.0, createCube(0.01,0.01,0.01,color), 1, 2,1)];
         player.object->accy = gravity;
 
@@ -389,6 +399,8 @@ public:
                         break;
                     case 'n':
                         spawnCube(-10.0 + 2.0*i, 0, -10.0 + 2.0*j, createCube(2,2,2,nojumpcolor), 2,2,2);
+                    case 's':
+                        spawnCube(-10.0 + 2.0*i, 0, -10.0 + 2.0*j, createCube(2,2,2,speedcolor), 2,2,2);
                     default:
                         break;
                 }
