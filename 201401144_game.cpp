@@ -302,6 +302,22 @@ public:
                 255,0,0
             }
         };
+        float wincolor[2][3]= {
+            {
+                125,255,255
+            },
+            {
+                125,125,255
+            }
+        };
+        float nojumpcolor[2][3]= {
+            {
+                125,255,125
+            },
+            {
+                125,255,125
+            }
+        };
         player.object = &objects[player.id=spawnCube(-10.0, 2.0, -10.0, createCube(0.01,0.01,0.01,color), 1, 2,1)];
         player.object->accy = gravity;
 
@@ -331,9 +347,13 @@ public:
                         }
                         break;
                     case '1':
-                    case 'w':
                         for (k=0; k<5; k++) {
                             spawnCube(-10.0 + 2.0*i, -2.0*k, -10.0 + 2.0*j, cube,2,2,2);
+                        }
+                        break;
+                    case 'w':
+                        for (k=0; k<5; k++) {
+                            spawnCube(-10.0 + 2.0*i, -2.0*k, -10.0 + 2.0*j, createCube(2,2,2,wincolor),2,2,2);
                         }
                         break;
                     case '4':
@@ -359,6 +379,8 @@ public:
                     case 'o':
                         oscillatables.push_back(spawnCube(-10.0 + 2.0*i, -2.0, -10.0 + 2.0*j, cube, 2,2,2));
                         break;
+                    case 'n':
+                        spawnCube(-10.0 + 2.0*i, 6.0 -2.0*k, -10.0 + 2.0*j, , createCube(2,2,2,nojumpcolor), 2,2,2);
                     default:
                         break;
                 }
